@@ -8,6 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "setup": "node scripts/setup.mjs",
     "cs": "tsx src/cli.ts",
     "balance": "tsx src/cli.ts balance",
     "modules": "tsx src/cli.ts list",

@@ -1,4 +1,8 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import { fileURLToPath } from "node:url";
+
+// Load .env from the project root, not the current directory, so launching from anywhere works.
+dotenv.config({ path: fileURLToPath(new URL("../.env", import.meta.url)), quiet: true });
 
 function num(name: string, fallback: number): number {
   const raw = process.env[name];

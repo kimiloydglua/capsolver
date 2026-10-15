@@ -11,10 +11,23 @@ Requirements: Node.js 20+ and a CapSolver API key.
 
 Typed TypeScript wrapper around the CapSolver API (`api-en.yaml`), with headless Chrome (puppeteer) helpers and a folder-per-use-case module system.
 
-## Setup
+## Windows (easiest)
+1. Install Node.js LTS from https://nodejs.org (default options).
+2. Double-click **`start.bat`**. The first launch installs everything and asks for your CapSolver key
+   (and, optionally, your World of Nations login), then shows a menu:
+   balance, vote once, vote forever, dry run, other modules, edit settings.
+
+From a terminal in this folder, `cs.bat` takes the same commands as `npm run cs --`:
+```bat
+cs balance
+cs run worldofnations --loop
+```
+To vote automatically when Windows starts, put a shortcut to `cs.bat` with arguments
+`run worldofnations --loop` in the Startup folder (`Win+R` → `shell:startup`).
+
+## Setup (macOS / Linux / any OS)
 ```bash
-npm install
-cp .env.example .env   # then set CAPSOLVER_API_KEY
+npm run setup          # installs dependencies, creates .env, asks for CAPSOLVER_API_KEY
 npm run balance
 ```
 
