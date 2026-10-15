@@ -1,0 +1,27 @@
+{
+  "name": "capsolver-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Typed CapSolver API toolkit with headless Chrome helpers and per-use-case modules",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "cs": "tsx src/cli.ts",
+    "balance": "tsx src/cli.ts balance",
+    "modules": "tsx src/cli.ts list",
+    "run-module": "tsx src/cli.ts run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.8",
+    "puppeteer": "^25.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
