@@ -33,10 +33,24 @@ async function goto(page: Page, url: string) {
   await page.goto(url, { waitUntil: "networkidle2", timeout: 60_000 });
 }
 
-/** Replace an input's value. Sites prefill the pseudo from the saved profile, and page.type() would append to it. */
+/**
+ * Replace an input's value. Sites prefill the pseudo from the saved profile, so typing would append to it.
+ * Set it in the DOM rather than with page.type(): keystrokes follow focus, and on Windows something (ad/overlay)
+ * steals it, leaving the field empty. The native setter + input/change events keep React-controlled inputs in sync.
+ */
 async function fill(page: Page, selector: string, value: string) {
-  await page.$eval(selector, (e) => ((e as HTMLInputElement).value = ""));
-  await page.type(selector, value);
+  const got = await page.$eval(
+    selector,
+    (e, v) => {
+      const input = e as HTMLInputElement;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, v);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      return input.value;
+    },
+    value,
+  );
+  if (got !== value) throw new Error(`could not fill ${selector} (got "${got}")`);
 }
 
 async function sitekeyOf(page: Page, kind: "recaptcha" | "turnstile" | "mtcaptcha", fallback: string): Promise<string> {
@@ -81,6 +95,8 @@ const serveurPrive: VoteSite = {
     if (await page.$eval("#voteBtn", (b) => (b as HTMLButtonElement).disabled)) {
       throw new Error(`vote button disabled: ${(await alertsText(page)) || "no message shown"}`);
     }
+    // The captcha solve takes a while; make sure the pseudo is still there, since the request is built from the form.
+    if ((await page.$eval("#username", (e) => (e as HTMLInputElement).value)) !== username) await fill(page, "#username", username);
     const resP = page.waitForResponse((r) => r.url().includes("/vote/form/ajax") && r.request().method() === "POST", { timeout: 60_000 });
     // Submit the form directly: a mouse click can land on an ad/popup covering the button, and then nothing is sent.
     await page.$eval("#voteForm", (f) => (f as HTMLFormElement).requestSubmit(f.querySelector<HTMLButtonElement>("#voteBtn")));
