@@ -33,6 +33,12 @@ async function goto(page: Page, url: string) {
   await page.goto(url, { waitUntil: "networkidle2", timeout: 60_000 });
 }
 
+/** Replace an input's value. Sites prefill the pseudo from the saved profile, and page.type() would append to it. */
+async function fill(page: Page, selector: string, value: string) {
+  await page.$eval(selector, (e) => ((e as HTMLInputElement).value = ""));
+  await page.type(selector, value);
+}
+
 async function sitekeyOf(page: Page, kind: "recaptcha" | "turnstile" | "mtcaptcha", fallback: string): Promise<string> {
   const found = (await detectCaptchas(page)).find((c) => c.kind === kind);
   return found && "sitekey" in found ? found.sitekey : fallback;
@@ -62,7 +68,7 @@ const serveurPrive: VoteSite = {
     const cooldown = await page.$eval("#voteForm .message-blured", (e) => (e as HTMLElement).innerText).catch(() => null);
     if (cooldown) return { submitted: false, alreadyVoted: true, message: clean(cooldown) };
 
-    await page.type("#username", username);
+    await fill(page, "#username", username);
     const websiteKey = await sitekeyOf(page, "mtcaptcha", "MTPublic-42pXmytZe");
     log(`[${this.name}] solving MTCaptcha`);
     const { solution } = await mtcaptcha({ websiteURL: page.url(), websiteKey, retries: 4 }); // MTCaptcha fails often on CapSolver's side
@@ -72,9 +78,15 @@ const serveurPrive: VoteSite = {
     if (!filled) throw new Error("MTCaptcha token input not found/filled");
     if (dryRun) return { submitted: false, alreadyVoted: false, message: "dry run: name + MTCaptcha token filled, not submitted" };
 
+    if (await page.$eval("#voteBtn", (b) => (b as HTMLButtonElement).disabled)) {
+      throw new Error(`vote button disabled: ${(await alertsText(page)) || "no message shown"}`);
+    }
     const resP = page.waitForResponse((r) => r.url().includes("/vote/form/ajax") && r.request().method() === "POST", { timeout: 60_000 });
-    await page.click("#voteBtn");
-    const res = await resP;
+    // Submit the form directly: a mouse click can land on an ad/popup covering the button, and then nothing is sent.
+    await page.$eval("#voteForm", (f) => (f as HTMLFormElement).requestSubmit(f.querySelector<HTMLButtonElement>("#voteBtn")));
+    const res = await resP.catch(async () => {
+      throw new Error(`no answer from serveur-prive.net after submitting: ${(await alertsText(page)) || "no message shown"}`);
+    });
     const data = (await res.json().catch(() => ({}))) as { success?: boolean; data?: unknown };
     const message = clean(Array.isArray(data.data) ? data.data.join(" ") : String(data.data ?? `HTTP ${res.status()}`)).replace(/<[^>]+>/g, "");
     if (data.success !== true && !ALREADY_RE.test(message)) throw new Error(`vote rejected: ${message}`);
@@ -89,7 +101,7 @@ const serveurMinecraftVote: VoteSite = {
   async vote(page, { username, dryRun, log }) {
     await goto(page, this.url);
     await page.waitForSelector("form.srvp-vote-form #vote-pseudo", { timeout: 30_000 });
-    await page.type("#vote-pseudo", username);
+    await fill(page, "#vote-pseudo", username);
 
     // Turnstile is rendered by React; give it a moment so our hook captures its callback.
     await page.waitForFunction(() => ((window as any).__csTurnstile ?? []).length > 0, { timeout: 15_000 }).catch(() => {});
@@ -125,7 +137,7 @@ const serveurMinecraftCom: VoteSite = {
   url: "https://serveur-minecraft.com/5665",
   async vote(page, { username, dryRun, log }) {
     await goto(page, this.url);
-    await page.type("#form_username", username);
+    await fill(page, "#form_username", username);
     const websiteKey = await sitekeyOf(page, "recaptcha", "6LcQmooUAAAAAEuP2PMGi8ZN7OT373Qic8jwgaOX");
     log(`[${this.name}] solving reCAPTCHA v2`);
     const { solution } = await recaptchaV2({ websiteURL: page.url(), websiteKey });
