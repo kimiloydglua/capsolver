@@ -1,0 +1,43 @@
+name: Vote
+
+on:
+  schedule:
+    - cron: "0 */3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Skip the final vote click"
+        type: boolean
+        default: false
+
+concurrency:
+  group: vote
+  cancel-in-progress: false
+
+jobs:
+  vote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Keeps the WON browser session between runs so we don't log in every time
+      - uses: actions/cache@v4
+        with:
+          path: .data
+          key: won-data-${{ github.run_id }}
+          restore-keys: won-data-
+      - name: Run worldofnations
+        run: npm run cs -- run worldofnations ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          CAPSOLVER_API_KEY: ${{ secrets.CAPSOLVER_API_KEY }}
+          CAPSOLVER_APP_ID: ${{ secrets.CAPSOLVER_APP_ID }}
+          CAPSOLVER_PROXY: ${{ secrets.CAPSOLVER_PROXY }}
+          WON_EMAIL: ${{ secrets.WON_EMAIL }}
+          WON_PASSWORD: ${{ secrets.WON_PASSWORD }}
+          WON_USERNAME: ${{ secrets.WON_USERNAME }}
+          HEADLESS: "true"
