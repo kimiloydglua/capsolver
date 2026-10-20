@@ -31,6 +31,8 @@ const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").t
 
 async function goto(page: Page, url: string) {
   await page.goto(url, { waitUntil: "networkidle2", timeout: 60_000 });
+  // Cloudflare serves its challenge to datacenter IPs (GitHub runners); the vote form never appears.
+  if (/just a moment|un instant/i.test(await page.title())) throw new Error("blocked by Cloudflare (datacenter/VPN IP)");
 }
 
 /**
@@ -70,6 +72,14 @@ async function alertsText(page: Page): Promise<string> {
 }
 
 const ALREADY_RE = /déjà voté|deja vote|already voted|revenez dans|attendre|prochain vote|pouvez voter dans|patienter/i;
+// Sites that answer 200 but refuse the vote; waiting for WON after these only burns the check timeout.
+const REJECTED_RE = /proxy|vpn|pas été comptabilisé|pas ete comptabilise/i;
+
+function outcomeOf(message: string): SiteOutcome {
+  if (REJECTED_RE.test(message)) throw new Error(`vote rejected: ${message}`);
+  const alreadyVoted = ALREADY_RE.test(message);
+  return { submitted: !alreadyVoted, alreadyVoted, message };
+}
 
 // ---------------------------------------------------------------------------
 
@@ -142,8 +152,7 @@ const serveurMinecraftVote: VoteSite = {
     page.off("response", onRes);
 
     const message = clean([await alertsText(page), ...posts].filter(Boolean).join(" | ")) || "submitted (no message shown)";
-    const alreadyVoted = ALREADY_RE.test(message);
-    return { submitted: !alreadyVoted, alreadyVoted, message };
+    return outcomeOf(message);
   },
 };
 
@@ -165,8 +174,7 @@ const serveurMinecraftCom: VoteSite = {
       page.click('form[name="form"] button[type="submit"]'),
     ]);
     const message = (await alertsText(page)) || "submitted (no message shown)";
-    const alreadyVoted = ALREADY_RE.test(message);
-    return { submitted: !alreadyVoted, alreadyVoted, message };
+    return outcomeOf(message);
   },
 };
 
@@ -190,8 +198,7 @@ const serveursMinecraftOrg: VoteSite = {
       page.click('#vote input[type="submit"]'),
     ]);
     const message = (await alertsText(page)) || clean(await page.evaluate(() => document.body.innerText)).slice(0, 200);
-    const alreadyVoted = ALREADY_RE.test(message);
-    return { submitted: !alreadyVoted, alreadyVoted, message };
+    return outcomeOf(message);
   },
 };
 

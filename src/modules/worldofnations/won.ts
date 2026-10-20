@@ -71,7 +71,7 @@ export interface CheckResult {
  * Uses a middle-click event so the site's JS starts the check without opening a new tab.
  * Returns a promise resolving when the site says the vote was rewarded (or errors / times out).
  */
-export function startVoteCheck(page: Page, siteId: string, timeoutMs = 5 * 60_000): { result: Promise<CheckResult>; started: Promise<void> } {
+export function startVoteCheck(page: Page, siteId: string, timeoutMs = 2 * 60_000): { result: Promise<CheckResult>; started: Promise<void> } {
   let cleanup = () => {};
   const result = new Promise<CheckResult>((resolve) => {
     const timer = setTimeout(() => {
