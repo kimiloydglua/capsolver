@@ -1,14 +1,11 @@
 name: Vote
 
+# GitHub kills jobs after 6h, so each run loops for 5h45 then exits cleanly;
+# the next scheduled run takes over. concurrency prevents two loops overlapping.
 on:
   schedule:
-    - cron: "0 */3 * * *"
+    - cron: "0 */6 * * *"
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Skip the final vote click"
-        type: boolean
-        default: false
 
 concurrency:
   group: vote
@@ -17,7 +14,7 @@ concurrency:
 jobs:
   vote:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,7 +29,10 @@ jobs:
           key: won-data-${{ github.run_id }}
           restore-keys: won-data-
       - name: Run worldofnations
-        run: npm run cs -- run worldofnations ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: |
+          timeout 345m npx tsx src/cli.ts run worldofnations --loop || code=$?
+          # 124 = stopped by timeout, the expected end of every run
+          if [ "${code:-0}" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
         env:
           CAPSOLVER_API_KEY: ${{ secrets.CAPSOLVER_API_KEY }}
           CAPSOLVER_APP_ID: ${{ secrets.CAPSOLVER_APP_ID }}
